@@ -50,7 +50,7 @@ class PasswordWithTfa extends Password
      *
      * @return bool
      */
-    public function requiresOtp(ResponseInterface $response)
+    public static function requiresOtp(ResponseInterface $response)
     {
         return substr($response->getStatusCode(), 0, 1) === '4' && $response->hasHeader(self::TFA_HEADER);
     }
