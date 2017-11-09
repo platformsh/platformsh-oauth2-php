@@ -2,8 +2,8 @@
 
 namespace Platformsh\OAuth2\Client;
 
-use GuzzleHttp\ClientInterface;
 use League\OAuth2\Client\Grant\AbstractGrant;
+use League\OAuth2\Client\Grant\ClientCredentials;
 use League\OAuth2\Client\Grant\RefreshToken;
 use League\OAuth2\Client\Provider\AbstractProvider;
 use League\OAuth2\Client\Token\AccessToken;
@@ -12,9 +12,6 @@ use Psr\Http\Message\ResponseInterface;
 
 class GuzzleMiddleware
 {
-    /** @var \GuzzleHttp\ClientInterface */
-    private $client;
-
     /** @var AbstractProvider $provider */
     private $provider;
 
@@ -30,16 +27,14 @@ class GuzzleMiddleware
     /**
      * GuzzleMiddleware constructor.
      *
-     * @param \GuzzleHttp\ClientInterface                     $client
      * @param \League\OAuth2\Client\Provider\AbstractProvider $provider
      * @param \League\OAuth2\Client\Grant\AbstractGrant       $grant
      * @param \League\OAuth2\Client\Grant\RefreshToken|null   $refreshGrant
      */
-    public function __construct(ClientInterface $client, AbstractProvider $provider, AbstractGrant $grant, RefreshToken $refreshGrant = null)
+    public function __construct(AbstractProvider $provider, AbstractGrant $grant = null, RefreshToken $refreshGrant = null)
     {
-        $this->client = $client;
         $this->provider = $provider;
-        $this->grant = $grant;
+        $this->grant = $grant ?: new ClientCredentials();
         $this->refreshGrant = $refreshGrant ?: new RefreshToken();
     }
 
@@ -48,7 +43,7 @@ class GuzzleMiddleware
      *
      * @param callable|null $next
      *
-     * @return callable
+     * @return \GuzzleHttp\Promise\PromiseInterface
      */
     public function __invoke(callable $next)
     {
@@ -61,8 +56,14 @@ class GuzzleMiddleware
 
             $request = $this->authenticateRequest($request);
 
-            return $next($request, $options)
-                ->then(function (ResponseInterface $response) use ($request, $options, &$retries) {
+            /** @var \GuzzleHttp\Promise\PromiseInterface $promise */
+            $promise = $next($request, $options);
+
+            return $promise->then(
+                function (ResponseInterface $response) {
+                    return $response;
+                },
+                function (ResponseInterface $response) use ($request, $options, &$retries) {
                     if ($response->getStatusCode() === 401) {
                         if ($retries++ > 5) {
                             return $response;
@@ -70,11 +71,12 @@ class GuzzleMiddleware
 
                         $request = $this->authenticateRequest($request);
 
-                        return $this->client->send($request, $options);
+                        return $this->provider->getHttpClient()->send($request, $options);
                     }
 
                     return $response;
-                });
+                }
+            );
         };
     }
 

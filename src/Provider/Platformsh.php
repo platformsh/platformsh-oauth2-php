@@ -7,6 +7,7 @@ use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\GenericResourceOwner;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
+use Platformsh\OAuth2\Client\Exception\TfaRequiredException;
 use Platformsh\Oauth2\Client\Grant\PasswordWithTfa;
 use Psr\Http\Message\ResponseInterface;
 
@@ -14,12 +15,30 @@ class Platformsh extends AbstractProvider
 {
     use BearerAuthorizationTrait;
 
+    private $baseUrl = 'https://accounts.platform.sh';
+
+    /**
+     * Provider constructor.
+     *
+     * @param array $options
+     * @param array $collaborators
+     */
+    public function __construct(array $options = [], array $collaborators = [])
+    {
+        if (isset($options['base_url'])) {
+            $this->baseUrl = $options['base_url'];
+            unset($options['base_url']);
+        }
+
+        parent::__construct($options, $collaborators);
+    }
+
     /**
      * {@inheritdoc}
      */
     public function getBaseAuthorizationUrl()
     {
-        return 'https://accounts.platform.sh/oauth2/authorize';
+        return $this->baseUrl . '/oauth2/authorize';
     }
 
     /**
@@ -27,7 +46,7 @@ class Platformsh extends AbstractProvider
      */
     public function getBaseAccessTokenUrl(array $params)
     {
-        return 'https://accounts.platform.sh/oauth2/token';
+        return $this->baseUrl . '/oauth2/token';
     }
 
     /**
@@ -35,7 +54,7 @@ class Platformsh extends AbstractProvider
      */
     public function getResourceOwnerDetailsUrl(AccessToken $token)
     {
-        return 'https://accounts.platform.sh/oauth2/userinfo';
+        return $this->baseUrl . '/oauth2/userinfo';
     }
 
     /**
@@ -52,7 +71,10 @@ class Platformsh extends AbstractProvider
     protected function checkResponse(ResponseInterface $response, $data)
     {
         if (!empty($data['error'])) {
-            throw new IdentityProviderException($data['error'], 1, $data);
+            if (PasswordWithTfa::requiresOtp($response)) {
+                throw new TfaRequiredException($data['error_description']);
+            }
+            throw new IdentityProviderException($data['error_description'], 0, $data);
         }
     }
 
