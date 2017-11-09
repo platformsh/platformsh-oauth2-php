@@ -7,6 +7,7 @@ use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\GenericResourceOwner;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
+use Platformsh\Oauth2\Grant\PasswordWithTfa;
 use Psr\Http\Message\ResponseInterface;
 
 class Platformsh extends AbstractProvider
@@ -61,5 +62,32 @@ class Platformsh extends AbstractProvider
     protected function createResourceOwner(array $response, AccessToken $token)
     {
         return new GenericResourceOwner($response, 'id');
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getAccessToken($grant, array $options = [])
+    {
+        $grant = $this->verifyGrant($grant);
+
+        $params = [
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'redirect_uri' => $this->redirectUri,
+        ];
+
+        $params = $grant->prepareRequestParameters($params, $options);
+
+        // Modify the request for TFA (two-factor authentication) support.
+        $request = $this->getAccessTokenRequest($params);
+        if ($grant instanceof PasswordWithTfa) {
+            $request = $grant->modifyRequest($request);
+        }
+
+        $response = $this->getParsedResponse($request);
+        $prepared = $this->prepareAccessTokenResponse($response);
+
+        return $this->createAccessToken($prepared, $grant);
     }
 }
