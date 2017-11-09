@@ -1,6 +1,6 @@
 <?php
 
-namespace Platformsh\Oauth2\Client\Grant;
+namespace Platformsh\OAuth2\Client\Grant;
 
 use League\OAuth2\Client\Grant\Password;
 use Psr\Http\Message\RequestInterface;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Platformsh\Oauth2\Client;
+namespace Platformsh\OAuth2\Client;
 
 use GuzzleHttp\ClientInterface;
 use League\OAuth2\Client\Grant\AbstractGrant;

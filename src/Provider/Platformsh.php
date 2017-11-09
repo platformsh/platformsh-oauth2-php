@@ -1,6 +1,6 @@
 <?php
 
-namespace Platformsh\Oauth2\Client\Provider;
+namespace Platformsh\OAuth2\Client\Provider;
 
 use League\OAuth2\Client\Provider\AbstractProvider;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
