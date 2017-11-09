@@ -1,6 +1,6 @@
 <?php
 
-namespace Platformsh\Oauth2\Grant;
+namespace Platformsh\Oauth2\Client\Grant;
 
 use League\OAuth2\Client\Grant\AbstractGrant;
 

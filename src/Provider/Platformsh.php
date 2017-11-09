@@ -7,7 +7,7 @@ use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\GenericResourceOwner;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
-use Platformsh\Oauth2\Grant\PasswordWithTfa;
+use Platformsh\Oauth2\Client\Grant\PasswordWithTfa;
 use Psr\Http\Message\ResponseInterface;
 
 class Platformsh extends AbstractProvider
