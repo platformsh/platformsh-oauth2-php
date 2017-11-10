@@ -16,7 +16,8 @@ class Platformsh extends AbstractProvider
 
     const TFA_HEADER = 'X-Drupal-TFA';
 
-    private $baseUrl = 'https://accounts.platform.sh';
+    /** @var \Psr\Http\Message\UriInterface */
+    private $baseUri;
 
     /**
      * Provider constructor.
@@ -26,10 +27,8 @@ class Platformsh extends AbstractProvider
      */
     public function __construct(array $options = [], array $collaborators = [])
     {
-        if (isset($options['base_url'])) {
-            $this->baseUrl = $options['base_url'];
-            unset($options['base_url']);
-        }
+        $options += ['base_uri' => 'https://accounts.platform.sh'];
+        $this->baseUri = \GuzzleHttp\Psr7\uri_for($options['base_uri']);
 
         parent::__construct($options, $collaborators);
     }
@@ -39,7 +38,7 @@ class Platformsh extends AbstractProvider
      */
     public function getBaseAuthorizationUrl()
     {
-        return $this->baseUrl . '/oauth2/authorize';
+        return $this->baseUri->withPath('/oauth2/authorize')->__toString();
     }
 
     /**
@@ -47,7 +46,7 @@ class Platformsh extends AbstractProvider
      */
     public function getBaseAccessTokenUrl(array $params)
     {
-        return $this->baseUrl . '/oauth2/token';
+        return $this->baseUri->withPath('/oauth2/token')->__toString();
     }
 
     /**
@@ -55,7 +54,7 @@ class Platformsh extends AbstractProvider
      */
     public function getResourceOwnerDetailsUrl(AccessToken $token)
     {
-        return $this->baseUrl . '/oauth2/userinfo';
+        return $this->baseUri->withPath('/oauth2/userinfo')->__toString();
     }
 
     /**
@@ -126,5 +125,13 @@ class Platformsh extends AbstractProvider
     private function requiresTfa(ResponseInterface $response)
     {
         return substr($response->getStatusCode(), 0, 1) === '4' && $response->hasHeader(self::TFA_HEADER);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getAllowedClientOptions(array $options)
+    {
+        return ['timeout', 'proxy', 'base_uri', 'verify', 'debug'];
     }
 }
