@@ -78,6 +78,7 @@ class GuzzleMiddleware
                 },
                 function (ResponseInterface $response) use ($request, $options, &$retries) {
                     if ($response->getStatusCode() === 401 && $retries++ < 5) {
+                        $this->accessToken = null;
                         $request = $this->authenticateRequest($request);
                         $response = $this->provider->getHttpClient()->send($request, $options);
                     }
@@ -112,8 +113,7 @@ class GuzzleMiddleware
         if ($this->provider->getBaseAccessTokenUrl([]) === $request->getUri()) {
             return $request;
         }
-        $token = $this->getAccessToken(true);
-        if ($token !== null) {
+        if ($token = $this->getAccessToken()) {
             foreach ($this->provider->getHeaders($token->getToken()) as $name => $value) {
                 $request = $request->withAddedHeader($name, $value);
             }
