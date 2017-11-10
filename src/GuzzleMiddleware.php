@@ -18,9 +18,6 @@ class GuzzleMiddleware
     /** @var AbstractGrant $grant */
     private $grant;
 
-    /** @var RefreshToken $refreshGrant */
-    private $refreshGrant;
-
     /** @var \League\OAuth2\Client\Token\AccessToken|null */
     private $accessToken;
 
@@ -139,7 +136,7 @@ class GuzzleMiddleware
         }
 
         if (isset($this->accessToken) && $this->accessToken->getRefreshToken() && $this->accessToken->hasExpired()) {
-            return $this->provider->getAccessToken($this->refreshGrant, ['refresh_token' => $this->accessToken->getRefreshToken()]);
+            return $this->provider->getAccessToken(new RefreshToken(), ['refresh_token' => $this->accessToken->getRefreshToken()]);
         }
 
         return $this->provider->getAccessToken($this->grant, $this->grantOptions);
