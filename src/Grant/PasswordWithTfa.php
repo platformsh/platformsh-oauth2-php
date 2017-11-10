@@ -10,37 +10,23 @@ class PasswordWithTfa extends Password
 {
     const TFA_HEADER = 'X-Drupal-TFA';
 
-    /** @var int|string|null */
-    private $otp;
-
     /**
      * Modify a request to send the time-based OTP in the header.
      *
      * @param RequestInterface $request
+     * @param int|string       $totp
      *
      * @return RequestInterface
      */
-    public function modifyRequest(RequestInterface $request)
+    public function addTotp(RequestInterface $request, $totp)
     {
-        if (isset($this->otp)) {
-            if ($request->getUri()->getScheme() !== 'https') {
-                throw new \BadMethodCallException('Cannot add OTP token to non-HTTPS request.');
-            }
-
-            $request = $request->withHeader(self::TFA_HEADER, $this->otp);
+        if ($request->getUri()->getScheme() !== 'https') {
+            throw new \BadMethodCallException('Cannot add TOTP token to non-HTTPS request.');
         }
 
-        return $request;
-    }
+        $request = $request->withHeader(self::TFA_HEADER, $totp);
 
-    /**
-     * Set the time-based OTP code for the next request.
-     *
-     * @param int|string $otp
-     */
-    public function setOtp($otp)
-    {
-        $this->otp = $otp;
+        return $request;
     }
 
     /**

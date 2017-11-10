@@ -103,8 +103,8 @@ class Platformsh extends AbstractProvider
 
         // Modify the request for TFA (two-factor authentication) support.
         $request = $this->getAccessTokenRequest($params);
-        if ($grant instanceof PasswordWithTfa) {
-            $request = $grant->modifyRequest($request);
+        if ($grant instanceof PasswordWithTfa && isset($options['totp'])) {
+            $request = $grant->addTotp($request, $options['totp']);
         }
 
         $response = $this->getParsedResponse($request);
