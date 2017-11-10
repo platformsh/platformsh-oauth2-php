@@ -8,12 +8,13 @@ use League\OAuth2\Client\Provider\GenericResourceOwner;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
 use Platformsh\OAuth2\Client\Exception\TfaRequiredException;
-use Platformsh\Oauth2\Client\Grant\PasswordWithTfa;
 use Psr\Http\Message\ResponseInterface;
 
 class Platformsh extends AbstractProvider
 {
     use BearerAuthorizationTrait;
+
+    const TFA_HEADER = 'X-Drupal-TFA';
 
     private $baseUrl = 'https://accounts.platform.sh';
 
@@ -71,7 +72,7 @@ class Platformsh extends AbstractProvider
     protected function checkResponse(ResponseInterface $response, $data)
     {
         if (!empty($data['error'])) {
-            if (PasswordWithTfa::requiresOtp($response)) {
+            if ($this->requiresTfa($response)) {
                 throw new TfaRequiredException($data['error_description']);
             }
             throw new IdentityProviderException($data['error_description'], 0, $data);
@@ -88,6 +89,8 @@ class Platformsh extends AbstractProvider
 
     /**
      * {@inheritdoc}
+     *
+     * The option 'totp' can be provided for two-factor authentication.
      */
     public function getAccessToken($grant, array $options = [])
     {
@@ -103,13 +106,25 @@ class Platformsh extends AbstractProvider
 
         // Modify the request for TFA (two-factor authentication) support.
         $request = $this->getAccessTokenRequest($params);
-        if ($grant instanceof PasswordWithTfa && isset($options['totp'])) {
-            $request = $grant->addTotp($request, $options['totp']);
+        if ($grant->__toString() === 'password' && isset($options['totp'])) {
+            $request = $request->withHeader(self::TFA_HEADER, $options['totp']);
         }
 
         $response = $this->getParsedResponse($request);
         $prepared = $this->prepareAccessTokenResponse($response);
 
         return $this->createAccessToken($prepared, $grant);
+    }
+
+    /**
+     * Check whether the response requires two-factor authentication.
+     *
+     * @param \Psr\Http\Message\ResponseInterface $response
+     *
+     * @return bool
+     */
+    private function requiresTfa(ResponseInterface $response)
+    {
+        return substr($response->getStatusCode(), 0, 1) === '4' && $response->hasHeader(self::TFA_HEADER);
     }
 }

@@ -131,10 +131,6 @@ class GuzzleMiddleware
      */
     private function acquireAccessToken()
     {
-        if (isset($this->accessToken) && !$this->accessToken->hasExpired()) {
-            return $this->accessToken;
-        }
-
         if (isset($this->accessToken) && $this->accessToken->getRefreshToken() && $this->accessToken->hasExpired()) {
             return $this->provider->getAccessToken(new RefreshToken(), ['refresh_token' => $this->accessToken->getRefreshToken()]);
         }
