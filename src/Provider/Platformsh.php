@@ -27,7 +27,9 @@ class Platformsh extends AbstractProvider
      */
     public function __construct(array $options = [], array $collaborators = [])
     {
-        $options += ['base_uri' => 'https://accounts.platform.sh'];
+        if (empty($options['base_uri'])) {
+            $options['base_uri'] = 'https://accounts.platform.sh';
+        }
         $this->baseUri = \GuzzleHttp\Psr7\uri_for($options['base_uri']);
 
         parent::__construct($options, $collaborators);
