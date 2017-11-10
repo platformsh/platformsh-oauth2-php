@@ -24,6 +24,9 @@ class GuzzleMiddleware
     /** @var array */
     private $grantOptions = [];
 
+    /** @var callable|null */
+    private $tokenSave;
+
     /**
      * GuzzleMiddleware constructor.
      *
@@ -36,6 +39,18 @@ class GuzzleMiddleware
         $this->provider = $provider;
         $this->grant = $grant ?: new ClientCredentials();
         $this->grantOptions = $grantOptions;
+    }
+
+    /**
+     * Set a callback that will save a token whenever a new one is acquired.
+     *
+     * @param callable $tokenSave
+     *   A callback accepting one argument (the AccessToken) that will save a
+     *   token.
+     */
+    public function setTokenSaveCallback(callable $tokenSave)
+    {
+        $this->tokenSave = $tokenSave;
     }
 
     /**
@@ -112,15 +127,17 @@ class GuzzleMiddleware
     /**
      * Get the current access token.
      *
-     * @param bool $acquire Whether to acquire a new token if one doesn't exist.
-     *
      * @return \League\OAuth2\Client\Token\AccessToken|null
      *   The Oauth2 access token, or null if no access token is found.
      */
-    public function getAccessToken($acquire = false)
+    private function getAccessToken()
     {
-        if ($acquire && (!isset($this->accessToken) || $this->accessToken->hasExpired())) {
+        if ((!isset($this->accessToken) || $this->accessToken->hasExpired())) {
             $this->accessToken = $this->acquireAccessToken();
+            if ($this->accessToken !== null && is_callable($this->tokenSave)) {
+                $callback = $this->tokenSave;
+                $callback($this->accessToken);
+            }
         }
 
         return $this->accessToken;
