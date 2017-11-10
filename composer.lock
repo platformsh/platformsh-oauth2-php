@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "ebe7ec6258f32e7a57ad0f16567ffbd9",
+    "content-hash": "104a3f469f672160459457a382cf3739",
     "packages": [
         {
             "name": "guzzlehttp/guzzle",
@@ -359,6 +359,8 @@
     "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": [],
+    "platform": {
+        "php": ">=5.6.0"
+    },
     "platform-dev": []
 }
