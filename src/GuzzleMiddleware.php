@@ -62,25 +62,26 @@ class GuzzleMiddleware
      */
     public function __invoke(callable $next)
     {
-        $retries = 0;
-
         return function (RequestInterface $request, array $options) use ($next, &$retries) {
             if (!$this->isOAuth2($options)) {
                 return $next($request, $options);
             }
 
-            $request = $this->authenticateRequest($request);
+            $token = $this->getAccessToken();
+            if ($token && $this->provider->getBaseAccessTokenUrl([]) !== $request->getUri()) {
+                $request = $this->authenticateRequest($request, $token);
+            }
 
             /** @var \GuzzleHttp\Promise\PromiseInterface $promise */
-            return $next($request, $options)->then(
-                function (ResponseInterface $response) {
-                    return $response;
-                },
-                function (ResponseInterface $response) use ($request, $options, &$retries) {
-                    if ($response->getStatusCode() === 401 && $retries++ < 5) {
-                        $this->accessToken = null;
-                        $request = $this->authenticateRequest($request);
-                        $response = $this->provider->getHttpClient()->send($request, $options);
+            $promise = $next($request, $options);
+
+            return $promise->then(
+                function (ResponseInterface $response) use ($request, $options, &$token, $next) {
+                    if ($response->getStatusCode() === 401) {
+                        // Consider the old token invalid, and get a new one.
+                        $token = $this->getAccessToken($token);
+                        $request = $this->authenticateRequest($request, $token);
+                        $response = $next($request, $options);
                     }
 
                     return $response;
@@ -104,21 +105,15 @@ class GuzzleMiddleware
     /**
      * Add authentication to an HTTP request.
      *
-     * @param \Psr\Http\Message\RequestInterface $request
+     * @param \Psr\Http\Message\RequestInterface      $request
+     * @param \League\OAuth2\Client\Token\AccessToken $token
      *
      * @return \Psr\Http\Message\RequestInterface
      */
-    private function authenticateRequest(RequestInterface $request)
+    private function authenticateRequest(RequestInterface $request, AccessToken $token)
     {
-        if ($this->provider->getBaseAccessTokenUrl([]) === $request->getUri()) {
-            return $request;
-        }
-        if ($token = $this->getAccessToken()) {
-            foreach ($this->provider->getHeaders($token->getToken()) as $name => $value) {
-                $request = $request->withAddedHeader($name, $value);
-            }
-
-            return $request;
+        foreach ($this->provider->getHeaders($token->getToken()) as $name => $value) {
+            $request = $request->withHeader($name, $value);
         }
 
         return $request;
@@ -127,12 +122,15 @@ class GuzzleMiddleware
     /**
      * Get the current access token.
      *
+     * @param AccessToken|null $invalid
+     *   A token to consider invalid.
+     *
      * @return \League\OAuth2\Client\Token\AccessToken|null
      *   The Oauth2 access token, or null if no access token is found.
      */
-    private function getAccessToken()
+    private function getAccessToken(AccessToken $invalid = null)
     {
-        if ((!isset($this->accessToken) || $this->accessToken->hasExpired())) {
+        if (!isset($this->accessToken) || $this->accessToken->hasExpired() || ($invalid && $this->accessToken === $invalid)) {
             $this->accessToken = $this->acquireAccessToken();
             if ($this->accessToken !== null && is_callable($this->tokenSave)) {
                 $callback = $this->tokenSave;
@@ -148,7 +146,7 @@ class GuzzleMiddleware
      */
     private function acquireAccessToken()
     {
-        if (isset($this->accessToken) && $this->accessToken->getRefreshToken() && $this->accessToken->hasExpired()) {
+        if (isset($this->accessToken) && $this->accessToken->getRefreshToken()) {
             return $this->provider->getAccessToken(new RefreshToken(), ['refresh_token' => $this->accessToken->getRefreshToken()]);
         }
 
