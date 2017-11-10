@@ -24,18 +24,21 @@ class GuzzleMiddleware
     /** @var \League\OAuth2\Client\Token\AccessToken|null */
     private $accessToken;
 
+    /** @var array */
+    private $grantOptions = [];
+
     /**
      * GuzzleMiddleware constructor.
      *
      * @param \League\OAuth2\Client\Provider\AbstractProvider $provider
      * @param \League\OAuth2\Client\Grant\AbstractGrant       $grant
-     * @param \League\OAuth2\Client\Grant\RefreshToken|null   $refreshGrant
+     * @param array                                           $grantOptions
      */
-    public function __construct(AbstractProvider $provider, AbstractGrant $grant = null, RefreshToken $refreshGrant = null)
+    public function __construct(AbstractProvider $provider, AbstractGrant $grant = null, array $grantOptions = [])
     {
         $this->provider = $provider;
         $this->grant = $grant ?: new ClientCredentials();
-        $this->refreshGrant = $refreshGrant ?: new RefreshToken();
+        $this->grantOptions = $grantOptions;
     }
 
     /**
@@ -43,7 +46,7 @@ class GuzzleMiddleware
      *
      * @param callable|null $next
      *
-     * @return \GuzzleHttp\Promise\PromiseInterface
+     * @return callable
      */
     public function __invoke(callable $next)
     {
@@ -57,21 +60,14 @@ class GuzzleMiddleware
             $request = $this->authenticateRequest($request);
 
             /** @var \GuzzleHttp\Promise\PromiseInterface $promise */
-            $promise = $next($request, $options);
-
-            return $promise->then(
+            return $next($request, $options)->then(
                 function (ResponseInterface $response) {
                     return $response;
                 },
                 function (ResponseInterface $response) use ($request, $options, &$retries) {
-                    if ($response->getStatusCode() === 401) {
-                        if ($retries++ > 5) {
-                            return $response;
-                        }
-
+                    if ($response->getStatusCode() === 401 && $retries++ < 5) {
                         $request = $this->authenticateRequest($request);
-
-                        return $this->provider->getHttpClient()->send($request, $options);
+                        $response = $this->provider->getHttpClient()->send($request, $options);
                     }
 
                     return $response;
@@ -146,7 +142,7 @@ class GuzzleMiddleware
             return $this->provider->getAccessToken($this->refreshGrant, ['refresh_token' => $this->accessToken->getRefreshToken()]);
         }
 
-        return $this->provider->getAccessToken($this->grant);
+        return $this->provider->getAccessToken($this->grant, $this->grantOptions);
     }
 
     /**
