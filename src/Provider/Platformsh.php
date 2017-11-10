@@ -73,10 +73,11 @@ class Platformsh extends AbstractProvider
     protected function checkResponse(ResponseInterface $response, $data)
     {
         if (!empty($data['error'])) {
+            $message = !empty($data['error_description']) ? $data['error_description'] : $data['error'];
             if ($this->requiresTfa($response)) {
-                throw new TfaRequiredException($data['error_description']);
+                throw new TfaRequiredException($message);
             }
-            throw new IdentityProviderException($data['error_description'], 0, $data);
+            throw new IdentityProviderException($message, 0, $response);
         }
     }
 
