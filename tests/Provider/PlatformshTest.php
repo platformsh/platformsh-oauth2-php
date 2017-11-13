@@ -2,6 +2,7 @@
 
 namespace Platformsh\OAuth2\Client\Tests\Provider;
 
+use function GuzzleHttp\json_encode;
 use function GuzzleHttp\Psr7\parse_query;
 use GuzzleHttp\Psr7\Response;
 use function GuzzleHttp\Psr7\stream_for;
@@ -27,7 +28,7 @@ class PlatformshTest extends \PHPUnit_Framework_TestCase
 
             return (new Response(200))
                 ->withHeader('Content-Type', 'application/json')
-                ->withBody(stream_for(\GuzzleHttp\json_encode(['access_token' => 123])));
+                ->withBody(stream_for(json_encode(['access_token' => 123])));
         };
         $client = MockClient::withResponses([$mockResponse, $mockResponse]);
         $provider = new Platformsh([], ['httpClient' => $client]);
@@ -66,7 +67,7 @@ class PlatformshTest extends \PHPUnit_Framework_TestCase
 
             return (new Response(200))
                 ->withHeader('Content-Type', 'application/json')
-                ->withBody(stream_for(\GuzzleHttp\json_encode(['access_token' => 123])));
+                ->withBody(stream_for(json_encode(['access_token' => 123])));
         };
         $client = MockClient::withResponses([$mockResponse, $mockResponse]);
         $provider = new Platformsh([], ['httpClient' => $client]);
@@ -93,7 +94,7 @@ class PlatformshTest extends \PHPUnit_Framework_TestCase
 
             return (new Response(200))
                 ->withHeader('Content-Type', 'application/json')
-                ->withBody(stream_for(\GuzzleHttp\json_encode(['access_token' => 123])));
+                ->withBody(stream_for(json_encode(['access_token' => 123])));
         };
         $client = MockClient::withResponses([$mockResponse, $mockResponse]);
         $provider = new Platformsh([], ['httpClient' => $client]);
