@@ -77,7 +77,7 @@ class Platformsh extends AbstractProvider
             if ($this->requiresTfa($response)) {
                 throw new TfaRequiredException($message);
             }
-            throw new IdentityProviderException($message, 0, $response);
+            throw new IdentityProviderException($message, 0, $data);
         }
     }
 
