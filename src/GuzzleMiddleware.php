@@ -56,7 +56,7 @@ class GuzzleMiddleware
     /**
      * Main middleware callback.
      *
-     * @param callable|null $next
+     * @param callable $next
      *
      * @return callable
      */
