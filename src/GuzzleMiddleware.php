@@ -62,7 +62,7 @@ class GuzzleMiddleware
      */
     public function __invoke(callable $next)
     {
-        return function (RequestInterface $request, array $options) use ($next, &$retries) {
+        return function (RequestInterface $request, array $options) use ($next) {
             if (!$this->isOAuth2($request, $options)) {
                 return $next($request, $options);
             }
