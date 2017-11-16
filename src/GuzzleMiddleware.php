@@ -63,23 +63,23 @@ class GuzzleMiddleware
     public function __invoke(callable $next)
     {
         return function (RequestInterface $request, array $options) use ($next, &$retries) {
-            if (!$this->isOAuth2($options)) {
+            if (!$this->isOAuth2($request, $options)) {
                 return $next($request, $options);
             }
 
             $token = $this->getAccessToken();
-            if ($token && $this->provider->getBaseAccessTokenUrl([]) !== $request->getUri()) {
-                $request = $this->authenticateRequest($request, $token);
-            }
+            $request = $this->authenticateRequest($request, $token);
 
             /** @var \GuzzleHttp\Promise\PromiseInterface $promise */
             $promise = $next($request, $options);
 
             return $promise->then(
-                function (ResponseInterface $response) use ($request, $options, &$token, $next) {
+                function (ResponseInterface $response) use ($request, $options, $token, $next) {
                     if ($response->getStatusCode() === 401) {
                         // Consider the old token invalid, and get a new one.
                         $token = $this->getAccessToken($token);
+
+                        // Retry the request.
                         $request = $this->authenticateRequest($request, $token);
                         $response = $next($request, $options);
                     }
@@ -93,13 +93,24 @@ class GuzzleMiddleware
     /**
      * Check if a request is configured to use OAuth2.
      *
-     * @param array $options
+     * @param RequestInterface $request
+     * @param array            $options
      *
      * @return bool
      */
-    private function isOAuth2(array $options)
+    private function isOAuth2(RequestInterface $request, array $options)
     {
-        return isset($options['auth']) && $options['auth'] === 'oauth2';
+        // The 'auth' option must be set to 'oauth2'.
+        if (!isset($options['auth']) || $options['auth'] !== 'oauth2') {
+            return false;
+        }
+
+        // The request must be not for an access token endpoint.
+        if ($this->provider->getBaseAccessTokenUrl([]) === $request->getUri()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -125,16 +136,15 @@ class GuzzleMiddleware
      * @param AccessToken|null $invalid
      *   A token to consider invalid.
      *
-     * @return \League\OAuth2\Client\Token\AccessToken|null
-     *   The Oauth2 access token, or null if no access token is found.
+     * @return \League\OAuth2\Client\Token\AccessToken
+     *   The OAuth2 access token.
      */
     private function getAccessToken(AccessToken $invalid = null)
     {
         if (!isset($this->accessToken) || $this->accessToken->hasExpired() || ($invalid && $this->accessToken === $invalid)) {
             $this->accessToken = $this->acquireAccessToken();
-            if ($this->accessToken !== null && is_callable($this->tokenSave)) {
-                $callback = $this->tokenSave;
-                $callback($this->accessToken);
+            if (is_callable($this->tokenSave)) {
+                call_user_func($this->tokenSave, $this->accessToken);
             }
         }
 
@@ -142,7 +152,9 @@ class GuzzleMiddleware
     }
 
     /**
-     * Acquire a new access token.
+     * Acquire a new access token using a refresh token or the configured grant.
+     *
+     * @return AccessToken
      */
     private function acquireAccessToken()
     {
