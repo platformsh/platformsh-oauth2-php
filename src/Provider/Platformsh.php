@@ -2,22 +2,26 @@
 
 namespace Platformsh\OAuth2\Client\Provider;
 
+use GuzzleHttp\Psr7\Utils;
 use League\OAuth2\Client\Provider\AbstractProvider;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\GenericResourceOwner;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Tool\BearerAuthorizationTrait;
-use Platformsh\OAuth2\Client\Exception\TfaRequiredException;
 use Psr\Http\Message\ResponseInterface;
 
 class Platformsh extends AbstractProvider
 {
     use BearerAuthorizationTrait;
 
-    const TFA_HEADER = 'X-Drupal-TFA';
+    /** @var string */
+    private $tokenUrl;
 
-    /** @var \Psr\Http\Message\UriInterface */
-    private $baseUri;
+    /** @var string */
+    private $authorizeUrl;
+
+    /** @var string */
+    private $apiUrl;
 
     /**
      * Provider constructor.
@@ -27,10 +31,26 @@ class Platformsh extends AbstractProvider
      */
     public function __construct(array $options = [], array $collaborators = [])
     {
-        if (empty($options['base_uri'])) {
-            $options['base_uri'] = 'https://accounts.platform.sh';
+        if (empty($options['token_url'])) {
+            if (!empty($options['base_uri'])) {
+                $options['token_url'] = Utils::uriFor($options['base_uri'])
+                    ->withPath('/oauth2/token')
+                    ->__toString();
+            } else {
+                $options['token_url'] = 'https://auth.api.platform.sh/oauth2/token';
+            }
         }
-        $this->baseUri = \GuzzleHttp\Psr7\uri_for($options['base_uri']);
+        if (empty($options['authorize_url'])) {
+            $options['authorize_url'] = Utils::uriFor($options['token_url'])
+                ->withPath('/oauth2/authorize')
+                ->__toString();
+        }
+        if (empty($options['api_url'])) {
+            $options['api_url'] = 'https://api.platform.sh';
+        }
+        $this->tokenUrl = $options['token_url'];
+        $this->authorizeUrl = $options['authorize_url'];
+        $this->apiUrl = $options['api_url'];
 
         parent::__construct($options, $collaborators);
     }
@@ -40,7 +60,7 @@ class Platformsh extends AbstractProvider
      */
     public function getBaseAuthorizationUrl()
     {
-        return $this->baseUri->withPath('/oauth2/authorize')->__toString();
+        return $this->authorizeUrl;
     }
 
     /**
@@ -48,7 +68,7 @@ class Platformsh extends AbstractProvider
      */
     public function getBaseAccessTokenUrl(array $params)
     {
-        return $this->baseUri->withPath('/oauth2/token')->__toString();
+        return $this->tokenUrl;
     }
 
     /**
@@ -56,7 +76,16 @@ class Platformsh extends AbstractProvider
      */
     public function getResourceOwnerDetailsUrl(AccessToken $token)
     {
-        return $this->baseUri->withPath('/oauth2/userinfo')->__toString();
+        if (\substr_count('.', $token) === 2) {
+            list(, $payload) = explode('.', $token, 3);
+            $json = \json_decode(\base64_decode($payload), TRUE);
+            if (\is_array($json) && isset($json['sub'])) {
+                return Utils::uriFor($this->apiUrl)
+                    ->withPath('/users/' . \rawurlencode($json['sub']))
+                    ->__toString();
+            }
+        }
+        throw new \RuntimeException('Cannot find user info URL');
     }
 
     /**
@@ -64,7 +93,7 @@ class Platformsh extends AbstractProvider
      */
     protected function getDefaultScopes()
     {
-        return ['account'];
+        return [];
     }
 
     /**
@@ -74,9 +103,6 @@ class Platformsh extends AbstractProvider
     {
         if (!empty($data['error'])) {
             $message = !empty($data['error_description']) ? $data['error_description'] : $data['error'];
-            if ($this->requiresTfa($response)) {
-                throw new TfaRequiredException($message);
-            }
             throw new IdentityProviderException($message, 0, $data);
         }
     }
@@ -86,48 +112,7 @@ class Platformsh extends AbstractProvider
      */
     protected function createResourceOwner(array $response, AccessToken $token)
     {
-        return new GenericResourceOwner($response, 'id');
-    }
-
-    /**
-     * {@inheritdoc}
-     *
-     * The option 'totp' can be provided for two-factor authentication.
-     */
-    public function getAccessToken($grant, array $options = [])
-    {
-        $grant = $this->verifyGrant($grant);
-
-        $params = [
-            'client_id' => $this->clientId,
-            'client_secret' => $this->clientSecret,
-            'redirect_uri' => $this->redirectUri,
-        ];
-
-        $params = $grant->prepareRequestParameters($params, $options);
-
-        // Modify the request for TFA (two-factor authentication) support.
-        $request = $this->getAccessTokenRequest($params);
-        if ($grant->__toString() === 'password' && isset($options['totp'])) {
-            $request = $request->withHeader(self::TFA_HEADER, $options['totp']);
-        }
-
-        $response = $this->getParsedResponse($request);
-        $prepared = $this->prepareAccessTokenResponse($response);
-
-        return $this->createAccessToken($prepared, $grant);
-    }
-
-    /**
-     * Check whether the response requires two-factor authentication.
-     *
-     * @param \Psr\Http\Message\ResponseInterface $response
-     *
-     * @return bool
-     */
-    private function requiresTfa(ResponseInterface $response)
-    {
-        return substr($response->getStatusCode(), 0, 1) === '4' && $response->hasHeader(self::TFA_HEADER);
+        return new GenericResourceOwner($response, $response['id']);
     }
 
     /**
@@ -135,6 +120,15 @@ class Platformsh extends AbstractProvider
      */
     protected function getAllowedClientOptions(array $options)
     {
-        return ['timeout', 'proxy', 'base_uri', 'verify', 'debug'];
+        return [
+            'timeout',
+            'proxy',
+            'base_uri',
+            'verify',
+            'debug',
+            'api_url',
+            'token_url',
+            'authorize_url',
+        ];
     }
 }
