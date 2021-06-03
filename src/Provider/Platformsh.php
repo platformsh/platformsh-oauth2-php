@@ -76,16 +76,9 @@ class Platformsh extends AbstractProvider
      */
     public function getResourceOwnerDetailsUrl(AccessToken $token)
     {
-        if (\substr_count('.', $token) === 2) {
-            list(, $payload) = explode('.', $token, 3);
-            $json = \json_decode(\base64_decode($payload), TRUE);
-            if (\is_array($json) && isset($json['sub'])) {
-                return Utils::uriFor($this->apiUrl)
-                    ->withPath('/users/' . \rawurlencode($json['sub']))
-                    ->__toString();
-            }
-        }
-        throw new \RuntimeException('Cannot find user info URL');
+        return Utils::uriFor($this->apiUrl)
+            ->withPath('/users/me')
+            ->__toString();
     }
 
     /**
