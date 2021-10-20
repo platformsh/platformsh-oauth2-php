@@ -106,7 +106,7 @@ class GuzzleMiddleware
         }
 
         // The request must be not for an access token endpoint.
-        if ($this->provider->getBaseAccessTokenUrl([]) === $request->getUri()) {
+        if ($this->provider->getBaseAccessTokenUrl([]) === $request->getUri()->__toString()) {
             return false;
         }
 
