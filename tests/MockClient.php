@@ -6,22 +6,20 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 
-class MockClient extends Client
+class MockClient
 {
-
     /**
-     * Create a Guzzle client with these mock responses.
+     * Creates a Guzzle client with these mock responses.
      *
      * @param array $responses An array of PSR-7 ResponseInterface responses,
      *                         callables, Exceptions, or Promises.
      *
-     * @return \GuzzleHttp\Client
+     * @return Client
      */
     public static function withResponses(array $responses = [])
     {
-        return new static([
+        return new Client([
             'handler' => HandlerStack::create(new MockHandler($responses)),
         ]);
     }
-
 }
