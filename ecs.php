@@ -11,4 +11,6 @@ return ECSConfig::configure()
     ])
     ->withPreparedSets(
         psr12: true,
+        common: true,
+        strict: true,
     );

@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Platformsh\OAuth2\Client;
 
+use Closure;
 use GuzzleHttp\Exception\BadResponseException;
 use League\OAuth2\Client\Grant\AbstractGrant;
 use League\OAuth2\Client\Grant\ClientCredentials;
@@ -14,41 +17,25 @@ use Psr\Http\Message\ResponseInterface;
 
 class GuzzleMiddleware
 {
-    /** @var AbstractProvider $provider */
-    private $provider;
+    private readonly AbstractProvider $provider;
 
-    /** @var AbstractGrant $grant */
-    private $grant;
+    private readonly AbstractGrant $grant;
 
-    /** @var AccessToken|null */
-    private $accessToken;
+    private readonly array $grantOptions;
 
-    /** @var array */
-    private $grantOptions;
+    private ?AccessToken $accessToken;
 
-    /** @var callable|null */
-    private $tokenSave;
+    private ?Closure $tokenSave;
 
-    /** @var callable|null */
-    protected $onRefreshStart;
+    private ?Closure $onRefreshStart;
 
-    /** @var callable|null */
-    protected $onRefreshEnd;
+    private ?Closure $onRefreshEnd;
 
-    /** @var callable|null */
-    protected $onRefreshError;
+    private ?Closure $onRefreshError;
 
-    /** @var callable|null */
-    protected $onStepUpAuthResponse;
+    private ?Closure $onStepUpAuthResponse;
 
-    /**
-     * GuzzleMiddleware constructor.
-     *
-     * @param AbstractProvider $provider
-     * @param AbstractGrant $grant
-     * @param array                                           $grantOptions
-     */
-    public function __construct(AbstractProvider $provider, AbstractGrant $grant = null, array $grantOptions = [])
+    public function __construct(AbstractProvider $provider, ?AbstractGrant $grant = null, array $grantOptions = [])
     {
         $this->provider = $provider;
         $this->grant = $grant ?: new ClientCredentials();
@@ -56,76 +43,12 @@ class GuzzleMiddleware
     }
 
     /**
-     * Set a callback that will save a token whenever a new one is acquired.
-     *
-     * @param callable $tokenSave
-     *   A callback accepting one argument (the AccessToken) that will save a
-     *   token.
-     */
-    public function setTokenSaveCallback(callable $tokenSave)
-    {
-        $this->tokenSave = $tokenSave;
-    }
-
-    /**
-     * Sets a callback that will be triggered when token refresh starts.
-     *
-     * @param callable $callback
-     *   A callback which accepts 1 argument, the refresh token being used if
-     *   available (a string or null), and returns an AccessToken or null.
-     */
-    public function setOnRefreshStart(callable $callback)
-    {
-        $this->onRefreshStart = $callback;
-    }
-
-    /**
-     * Set a callback that will be triggered when token refresh ends.
-     *
-     * @param callable $callback
-     *   A callback which accepts 1 argument, the refresh token which was used
-     *   if available (a string or null).
-     */
-    public function setOnRefreshEnd(callable $callback)
-    {
-        $this->onRefreshEnd = $callback;
-    }
-
-    /**
-     * Set a callback that will react to a refresh token error.
-     *
-     * @param callable $callback
-     *   A callback which accepts one argument, the BadResponseException, and
-     *   returns an AccessToken or null.
-     */
-    public function setOnRefreshError(callable $callback)
-    {
-        $this->onRefreshError = $callback;
-    }
-
-    /**
-     * Set a callback that will react to a step-up authentication response (RFC 9470).
-     *
-     * @param callable $callback
-     *   A callback which accepts one argument, the response, of type \GuzzleHttp\Message\ResponseInterface,
-     *   and returns an AccessToken or null.
-     */
-    public function setOnStepUpAuthResponse(callable $callback)
-    {
-        $this->onStepUpAuthResponse = $callback;
-    }
-
-    /**
      * Main middleware callback.
-     *
-     * @param callable $next
-     *
-     * @return callable
      */
-    public function __invoke(callable $next)
+    public function __invoke(callable $next): callable
     {
         return function (RequestInterface $request, array $options) use ($next) {
-            if (!$this->isOAuth2($request, $options)) {
+            if (! $this->isOAuth2($request, $options)) {
                 return $next($request, $options);
             }
 
@@ -142,10 +65,7 @@ class GuzzleMiddleware
 
                 if (isset($this->onStepUpAuthResponse) && $this->isStepUpAuthenticationResponse($response)) {
                     $newToken = call_user_func($this->onStepUpAuthResponse, $response);
-                    $this->accessToken = $newToken;
-                    if (is_callable($this->tokenSave)) {
-                        call_user_func($this->tokenSave, $this->accessToken);
-                    }
+                    $this->setAccessToken($newToken);
                 } else {
                     // Consider the old token invalid, and get a new one.
                     $this->getAccessToken($token);
@@ -159,30 +79,92 @@ class GuzzleMiddleware
     }
 
     /**
-     * Checks for a step-up authentication response (RFC 9470).
+     * Set a callback that will save a token whenever a new one is acquired.
      *
-     * @param ResponseInterface $response
-     *
-     * @return bool
+     * @param callable $tokenSave
+     *   A callback accepting one argument (the AccessToken) that will save a
+     *   token.
      */
-    protected function isStepUpAuthenticationResponse(ResponseInterface $response)
+    public function setTokenSaveCallback(callable $tokenSave): void
+    {
+        $this->tokenSave = Closure::fromCallable($tokenSave);
+    }
+
+    /**
+     * Sets a callback that will be triggered when token refresh starts.
+     *
+     * @param callable $callback
+     *   A callback which accepts 1 argument, the refresh token being used if
+     *   available (a string or null), and returns an AccessToken or null.
+     */
+    public function setOnRefreshStart(callable $callback): void
+    {
+        $this->onRefreshStart = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Set a callback that will be triggered when token refresh ends.
+     *
+     * @param callable $callback
+     *   A callback which accepts 1 argument, the refresh token which was used
+     *   if available (a string or null).
+     */
+    public function setOnRefreshEnd(callable $callback): void
+    {
+        $this->onRefreshEnd = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Set a callback that will react to a refresh token error.
+     *
+     * @param callable $callback
+     *   A callback which accepts one argument, the BadResponseException, and
+     *   returns an AccessToken or null.
+     */
+    public function setOnRefreshError(callable $callback): void
+    {
+        $this->onRefreshError = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Set a callback that will react to a step-up authentication response (RFC 9470).
+     *
+     * @param callable $callback
+     *   A callback which accepts one argument, the response, of type \GuzzleHttp\Message\ResponseInterface,
+     *   and returns an AccessToken or null.
+     */
+    public function setOnStepUpAuthResponse(callable $callback): void
+    {
+        $this->onStepUpAuthResponse = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Sets the access token for the next request(s) and saves it to storage.
+     */
+    public function setAccessToken(AccessToken $token): void
+    {
+        $this->accessToken = $token;
+        if ($this->tokenSave) {
+            ($this->tokenSave)($this->accessToken);
+        }
+    }
+
+    /**
+     * Checks for a step-up authentication response (RFC 9470).
+     */
+    protected function isStepUpAuthenticationResponse(ResponseInterface $response): bool
     {
         $authHeader = implode("\n", $response->getHeader('WWW-Authenticate'));
-        return stripos($authHeader, 'Bearer') !== false && strpos($authHeader, 'insufficient_user_authentication') !== false;
+        return stripos($authHeader, 'Bearer') !== false && str_contains($authHeader, 'insufficient_user_authentication');
     }
 
     /**
      * Check if a request is configured to use OAuth2.
-     *
-     * @param RequestInterface $request
-     * @param array            $options
-     *
-     * @return bool
      */
-    private function isOAuth2(RequestInterface $request, array $options)
+    private function isOAuth2(RequestInterface $request, array $options): bool
     {
         // The 'auth' option must be set to 'oauth2'.
-        if (!isset($options['auth']) || $options['auth'] !== 'oauth2') {
+        if (! isset($options['auth']) || $options['auth'] !== 'oauth2') {
             return false;
         }
 
@@ -196,13 +178,8 @@ class GuzzleMiddleware
 
     /**
      * Add authentication to an HTTP request.
-     *
-     * @param RequestInterface $request
-     * @param AccessToken $token
-     *
-     * @return RequestInterface
      */
-    private function authenticateRequest(RequestInterface $request, AccessToken $token)
+    private function authenticateRequest(RequestInterface $request, AccessToken $token): RequestInterface
     {
         foreach ($this->provider->getHeaders($token->getToken()) as $name => $value) {
             $request = $request->withHeader($name, $value);
@@ -217,17 +194,12 @@ class GuzzleMiddleware
      * @param AccessToken|null $invalid
      *   A token to consider invalid.
      *
-     * @return AccessToken
-     *   The OAuth2 access token.
      * @throws IdentityProviderException
      */
-    private function getAccessToken(AccessToken $invalid = null)
+    private function getAccessToken(AccessToken $invalid = null): AccessToken
     {
-        if (!isset($this->accessToken) || $this->accessToken->hasExpired() || ($invalid && $this->accessToken === $invalid)) {
-            $this->accessToken = $this->acquireAccessToken();
-            if (is_callable($this->tokenSave)) {
-                call_user_func($this->tokenSave, $this->accessToken);
-            }
+        if (! isset($this->accessToken) || $this->accessToken->hasExpired() || ($invalid && $this->accessToken === $invalid)) {
+            $this->setAccessToken($this->acquireAccessToken());
         }
 
         return $this->accessToken;
@@ -236,10 +208,9 @@ class GuzzleMiddleware
     /**
      * Acquire a new access token using a refresh token or the configured grant.
      *
-     * @return AccessToken
      * @throws IdentityProviderException
      */
-    private function acquireAccessToken()
+    private function acquireAccessToken(): AccessToken
     {
         if (isset($this->accessToken) && $this->accessToken->getRefreshToken()) {
             $currentRefreshToken = $this->accessToken->getRefreshToken();
@@ -250,7 +221,9 @@ class GuzzleMiddleware
                         return $result;
                     }
                 }
-                return $this->provider->getAccessToken(new RefreshToken(), ['refresh_token' => $this->accessToken->getRefreshToken()]);
+                return $this->provider->getAccessToken(new RefreshToken(), [
+                    'refresh_token' => $this->accessToken->getRefreshToken(),
+                ]);
             } catch (BadResponseException $e) {
                 if (isset($this->onRefreshError)) {
                     $accessToken = call_user_func($this->onRefreshError, $e);
@@ -267,28 +240,5 @@ class GuzzleMiddleware
         }
 
         return $this->provider->getAccessToken($this->grant, $this->grantOptions);
-    }
-
-    /**
-     * Set the access token for the next request(s).
-     *
-     * @param AccessToken $token
-     */
-    public function setAccessToken(AccessToken $token)
-    {
-        $this->accessToken = $token;
-    }
-
-    /**
-     * Set the access token for the next request(s), and save it to storage.
-     *
-     * @param AccessToken $token
-     */
-    public function saveAccessToken(AccessToken $token)
-    {
-        $this->accessToken = $token;
-        if (is_callable($this->tokenSave)) {
-            call_user_func($this->tokenSave, $this->accessToken);
-        }
     }
 }

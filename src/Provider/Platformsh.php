@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Platformsh\OAuth2\Client\Provider;
 
 use GuzzleHttp\Psr7\Utils;
@@ -14,25 +16,16 @@ class Platformsh extends AbstractProvider
 {
     use BearerAuthorizationTrait;
 
-    /** @var string */
-    private $tokenUrl;
+    private string $tokenUrl;
 
-    /** @var string */
-    private $authorizeUrl;
+    private string $authorizeUrl;
 
-    /** @var string */
-    private $apiUrl;
+    private string $apiUrl;
 
-    /**
-     * Provider constructor.
-     *
-     * @param array $options
-     * @param array $collaborators
-     */
     public function __construct(array $options = [], array $collaborators = [])
     {
         if (empty($options['token_url'])) {
-            if (!empty($options['base_uri'])) {
+            if (! empty($options['base_uri'])) {
                 $options['token_url'] = Utils::uriFor($options['base_uri'])
                     ->withPath('/oauth2/token')
                     ->__toString();
@@ -55,63 +48,42 @@ class Platformsh extends AbstractProvider
         parent::__construct($options, $collaborators);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getBaseAuthorizationUrl()
     {
         return $this->authorizeUrl;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getBaseAccessTokenUrl(array $params)
     {
         return $this->tokenUrl;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getResourceOwnerDetailsUrl(AccessToken $token)
+    public function getResourceOwnerDetailsUrl(AccessToken $token): string
     {
         return Utils::uriFor($this->apiUrl)
             ->withPath('/users/me')
             ->__toString();
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function getDefaultScopes()
+    protected function getDefaultScopes(): array
     {
         return [];
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function checkResponse(ResponseInterface $response, $data)
+    protected function checkResponse(ResponseInterface $response, $data): void
     {
-        if (!empty($data['error'])) {
-            $message = !empty($data['error_description']) ? $data['error_description'] : $data['error'];
+        if (! empty($data['error'])) {
+            $message = ! empty($data['error_description']) ? $data['error_description'] : $data['error'];
             throw new IdentityProviderException($message, 0, $data);
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function createResourceOwner(array $response, AccessToken $token)
+    protected function createResourceOwner(array $response, AccessToken $token): GenericResourceOwner|\League\OAuth2\Client\Provider\ResourceOwnerInterface
     {
         return new GenericResourceOwner($response, $response['id']);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function getAllowedClientOptions(array $options)
+    protected function getAllowedClientOptions(array $options): array
     {
         return [
             'timeout',

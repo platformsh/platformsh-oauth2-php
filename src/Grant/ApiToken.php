@@ -1,23 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Platformsh\OAuth2\Client\Grant;
 
 use League\OAuth2\Client\Grant\AbstractGrant;
 
 class ApiToken extends AbstractGrant
 {
-    /**
-     * {@inheritdoc}
-     */
-    protected function getName()
+    protected function getName(): string
     {
         return 'api_token';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function getRequiredRequestParameters()
+    protected function getRequiredRequestParameters(): array
     {
         return ['api_token'];
     }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Platformsh\OAuth2\Client\Tests;
 
 use GuzzleHttp\Client;
