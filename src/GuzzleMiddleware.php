@@ -118,7 +118,7 @@ class GuzzleMiddleware
      * Set a callback that will react to a refresh token error.
      *
      * @param callable $callback
-     *   A callback which accepts one argument, the BadResponseException, and
+     *   A callback which accepts one argument, the IdentityProviderException, and
      *   returns an AccessToken or null.
      */
     public function setOnRefreshError(callable $callback): void
@@ -224,7 +224,7 @@ class GuzzleMiddleware
                 return $this->provider->getAccessToken(new RefreshToken(), [
                     'refresh_token' => $this->accessToken->getRefreshToken(),
                 ]);
-            } catch (BadResponseException $e) {
+            } catch (IdentityProviderException $e) {
                 if (isset($this->onRefreshError)) {
                     $accessToken = call_user_func($this->onRefreshError, $e);
                     if ($accessToken) {
