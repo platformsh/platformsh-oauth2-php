@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Platformsh\OAuth2\Client;
 
 use Closure;
-use GuzzleHttp\Exception\BadResponseException;
 use League\OAuth2\Client\Grant\AbstractGrant;
 use League\OAuth2\Client\Grant\ClientCredentials;
 use League\OAuth2\Client\Grant\RefreshToken;
@@ -72,7 +71,7 @@ class GuzzleMiddleware
                 }
 
                 // Retry the request.
-                $request = $this->authenticateRequest($request, $token);
+                $request = $this->authenticateRequest($request, $this->accessToken);
                 return $next($request, $options);
             });
         };
