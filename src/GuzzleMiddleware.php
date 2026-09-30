@@ -95,6 +95,7 @@ class GuzzleMiddleware
      * @param callable $callback
      *   A callback which accepts 1 argument, the refresh token being used if
      *   available (a string or null), and returns an AccessToken or null.
+     *   A returned AccessToken is used and saved instead of refreshing.
      */
     public function setOnRefreshStart(callable $callback): void
     {
@@ -106,7 +107,8 @@ class GuzzleMiddleware
      *
      * @param callable $callback
      *   A callback which accepts 1 argument, the refresh token which was used
-     *   if available (a string or null).
+     *   if available (a string or null). It runs after any new token has been
+     *   saved via the token save callback, including on failure.
      */
     public function setOnRefreshEnd(callable $callback): void
     {
@@ -118,7 +120,8 @@ class GuzzleMiddleware
      *
      * @param callable $callback
      *   A callback which accepts one argument, the IdentityProviderException, and
-     *   returns an AccessToken or null.
+     *   returns an AccessToken or null. A returned AccessToken is saved before
+     *   the onRefreshEnd callback runs.
      */
     public function setOnRefreshError(callable $callback): void
     {
@@ -198,18 +201,20 @@ class GuzzleMiddleware
     private function getAccessToken(AccessToken $invalid = null): AccessToken
     {
         if (! isset($this->accessToken) || $this->accessToken->hasExpired() || ($invalid && $this->accessToken === $invalid)) {
-            $this->setAccessToken($this->acquireAccessToken());
+            $this->acquireAccessToken();
         }
 
         return $this->accessToken;
     }
 
     /**
-     * Acquire a new access token using a refresh token or the configured grant.
+     * Acquire and save a new access token using a refresh token or the configured grant.
+     *
+     * During a refresh, the token is saved before the onRefreshEnd callback runs.
      *
      * @throws IdentityProviderException
      */
-    private function acquireAccessToken(): AccessToken
+    private function acquireAccessToken(): void
     {
         if (isset($this->accessToken) && $this->accessToken->getRefreshToken()) {
             $currentRefreshToken = $this->accessToken->getRefreshToken();
@@ -217,17 +222,20 @@ class GuzzleMiddleware
                 if (isset($this->onRefreshStart)) {
                     $result = call_user_func($this->onRefreshStart, $currentRefreshToken);
                     if ($result instanceof AccessToken) {
-                        return $result;
+                        $this->setAccessToken($result);
+                        return;
                     }
                 }
-                return $this->provider->getAccessToken(new RefreshToken(), [
-                    'refresh_token' => $this->accessToken->getRefreshToken(),
-                ]);
+                $this->setAccessToken($this->provider->getAccessToken(new RefreshToken(), [
+                    'refresh_token' => $currentRefreshToken,
+                ]));
+                return;
             } catch (IdentityProviderException $e) {
                 if (isset($this->onRefreshError)) {
                     $accessToken = call_user_func($this->onRefreshError, $e);
                     if ($accessToken) {
-                        return $accessToken;
+                        $this->setAccessToken($accessToken);
+                        return;
                     }
                 }
                 throw $e;
@@ -238,6 +246,6 @@ class GuzzleMiddleware
             }
         }
 
-        return $this->provider->getAccessToken($this->grant, $this->grantOptions);
+        $this->setAccessToken($this->provider->getAccessToken($this->grant, $this->grantOptions));
     }
 }
