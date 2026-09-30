@@ -139,4 +139,13 @@ class GuzzleMiddlewareTest extends TestCase
 
         $this->assertSame(['end:old-refresh'], $events);
     }
+
+    public function testSetAccessTokenWithoutSaveCallback()
+    {
+        $middleware = new GuzzleMiddleware(new Platformsh());
+        $middleware->setAccessToken(new AccessToken([
+            'access_token' => 'access',
+        ]));
+        $this->addToAssertionCount(1);
+    }
 }

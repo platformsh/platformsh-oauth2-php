@@ -146,7 +146,7 @@ class GuzzleMiddleware
     public function setAccessToken(AccessToken $token): void
     {
         $this->accessToken = $token;
-        if ($this->tokenSave) {
+        if (isset($this->tokenSave)) {
             ($this->tokenSave)($this->accessToken);
         }
     }
